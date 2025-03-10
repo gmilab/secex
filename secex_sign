@@ -1,0 +1,32 @@
+#!/bin/bash
+# File: secex_sign
+# Description: Checks that a provided Bash script is syntactically valid and clearsigns it
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <bash_script_file>"
+    exit 1
+fi
+
+SCRIPT_FILE="$1"
+
+if [ ! -f "$SCRIPT_FILE" ]; then
+    echo "Error: File '$SCRIPT_FILE' does not exist."
+    exit 1
+fi
+
+# Check syntax with bash -n
+if ! bash -n "$SCRIPT_FILE"; then
+    echo "Syntax error in '$SCRIPT_FILE'. Aborting signing process."
+    exit 1
+fi
+
+# Clear-sign the script
+OUTPUT_FILE="${SCRIPT_FILE}.signed"
+gpg --clearsign -o "$OUTPUT_FILE" "$SCRIPT_FILE"
+if [ $? -eq 0 ]; then
+    echo "Script successfully signed. Output file: $OUTPUT_FILE"
+else
+    echo "Error: Failed to sign the script."
+    exit 1
+fi
+

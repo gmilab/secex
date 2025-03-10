@@ -1,0 +1,60 @@
+#!/bin/bash
+# File: secex_execute
+# Description: Downloads a clearsigned script from a URL, verifies its GPG signature using a hardcoded public key,
+# and executes the script only if the signature is valid.
+
+# URL for the clearsigned script (or prespecify instead of reading parameter)
+SIGNED_SCRIPT_URL=$1
+
+# Hardcoded public key (replace with your actual key)
+PUBLIC_KEY="-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1
+
+mQENBF6zYIcBCAC9UIB6JE5/EXAMPLEKEYDATAHEREwK8TnVbHcLr
++EXAMPLEdKfHexamplekeydataLhN6Xhexamplekeydata=abcd
+-----END PGP PUBLIC KEY BLOCK-----"
+
+# Download the clearsigned script to a temporary file
+SIGNED_FILE=$(mktemp)
+if ! curl -s -o "$SIGNED_FILE" "$SIGNED_SCRIPT_URL"; then
+    echo "Error: Failed to download the script from $SIGNED_SCRIPT_URL."
+    rm -f "$SIGNED_FILE"
+    exit 1
+fi
+
+# Create a temporary GPG home to avoid interference with your default keyring
+TEMP_GNUPGHOME=$(mktemp -d)
+chmod 700 "$TEMP_GNUPGHOME"
+export GNUPGHOME="$TEMP_GNUPGHOME"
+
+# Import the hardcoded public key
+echo "$PUBLIC_KEY" | gpg --import > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to import the public key."
+    rm -f "$SIGNED_FILE"
+    rm -rf "$TEMP_GNUPGHOME"
+    exit 1
+fi
+
+# Verify the signature; gpg returns a non-zero exit code if verification fails
+if ! gpg --verify "$SIGNED_FILE" > /dev/null 2>&1; then
+    echo "Signature verification failed. The script will not be executed."
+    rm -f "$SIGNED_FILE"
+    rm -rf "$TEMP_GNUPGHOME"
+    exit 1
+fi
+
+echo "Signature verified successfully. Executing the script..."
+
+# For a clearsigned file, use gpg --decrypt to extract the plaintext
+if ! gpg --decrypt "$SIGNED_FILE" 2>/dev/null | bash; then
+    echo "Error: Execution of the downloaded script failed."
+    rm -f "$SIGNED_FILE"
+    rm -rf "$TEMP_GNUPGHOME"
+    exit 1
+fi
+
+# Cleanup temporary files and directories
+rm -f "$SIGNED_FILE"
+rm -rf "$TEMP_GNUPGHOME"
+
